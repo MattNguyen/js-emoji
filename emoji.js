@@ -74,15 +74,6 @@ function emoji(){}
 	 */
 	emoji.use_sheet = false;
 
-	/**
-	 *
-	 * Set to true to avoid black & white native Windows emoji being used.
-	 *
-	 * @memberof emoji
-	 * @type bool
-	 */
-	emoji.avoid_ms_emoji = true;
-
 	// Keeps track of what has been initialized.
 	/** @private */
 	emoji.inits = {};
@@ -137,6 +128,23 @@ function emoji(){}
 			return val ? emoji.replacement(val, idx, ':') : m;
 		});
 	};
+
+	/**
+	 * @memberof emoji
+	 * @param {string} str A string potentially containing colon string
+	 * representations of emoticons (ie. `:smile:`)
+	 *
+	 * @returns {string} A new string with all colon string emoticons replaced
+	 * with the surrogate pair unicode represenation.
+	 */
+  emoji.replace_colon_with_unified = function(str){
+    emoji.initColonToUnified();
+    emoji.replace_mode = 'unified';
+    return str.replace(emoji.rx_colons, function(m){
+      var key = m.substr(1, m.length-2);
+      return emoji.map.unicodeToUnified[key] ? emoji.map.unicodeToUnified[key] : m;
+    });
+  };
 
 	/**
 	 * @memberof emoji
@@ -238,6 +246,18 @@ function emoji(){}
 		emoji.rx_unified = new RegExp('('+a.join('|')+')', "g");
 	};
 
+  // Initializes colon to unified mapping
+	/** @private */
+  emoji.initColonToUnified = function(){
+    emoji.init_colons();
+    emoji.map.unicodeToUnified = {};
+    for (var i in emoji.data){
+      for (var j in emoji.data[i][3]) {
+        emoji.map.unicodeToUnified[emoji.data[i][3][j]] = emoji.data[i][0][0];
+      }
+    }
+  }
+
 	// initializes the environment, figuring out what representation
 	// of emoticons is best.
 	/** @private */
@@ -247,12 +267,6 @@ function emoji(){}
 		emoji.replace_mode = 'img';
 		emoji.supports_css = false;
 		var ua = navigator.userAgent;
-		if (window.getComputedStyle){
-			var st = window.getComputedStyle(document.body);
-			if (st['background-size'] || st['backgroundSize']){
-				emoji.supports_css = true;
-			}
-		}
 		if (ua.match(/(iPhone|iPod|iPad|iPhone\s+Simulator)/i)){
 			if (ua.match(/OS\s+[12345]/i)){
 				emoji.replace_mode = 'softbank';
@@ -264,31 +278,33 @@ function emoji(){}
 			}
 		}
 		if (ua.match(/Mac OS X 10[._ ](?:[789]|1\d)/i)){
-			if (!ua.match(/Chrome/i) && !ua.match(/Firefox/i)){
+			if (!ua.match(/Chrome/i)){
 				emoji.replace_mode = 'unified';
 				return;
 			}
 		}
-		if (!emoji.avoid_ms_emoji){
-			if (ua.match(/Windows NT 6.[1-9]/i) || ua.match(/Windows NT 10.[0-9]/i)){
-				if (!ua.match(/Chrome/i) && !ua.match(/MSIE 8/i)){
-					emoji.replace_mode = 'unified';
-					return;
-				}
+		if (ua.match(/Windows NT 6.[1-9]/i)){
+			if (!ua.match(/Chrome/i)){
+				emoji.replace_mode = 'unified';
+				return;
 			}
 		}
-
 		// Need a better way to detect android devices that actually
 		// support emoji.
 		if (false && ua.match(/Android/i)){
 			emoji.replace_mode = 'google';
 			return;
 		}
-		if (emoji.supports_css){
-			emoji.replace_mode = 'css';
-		}
 		// nothing fancy detected - use images
+		if (window.getComputedStyle){
+			var st = window.getComputedStyle(document.body);
+			if (st['background-size'] || st['backgroundSize']){
+				emoji.supports_css = true;
+        emoji.replace_mode = 'css';
+			}
+		}
 	};
+
 	/** @private */
 	emoji.escape_rx = function(text){
 		return text.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, "\\$&");
